@@ -21,11 +21,13 @@ pip3 install prettytable
 #### Help
 ```
 ./anlysis.py --help
-usage: analysis [-h] [-f] [-d LOG_DIR]
+usag: analysis [-h] [-f] [-q] [-w] [-d LOGDIR]
 
 optional arguments:
   -h, --help            show this help message and exit
   -f, --filename        display filename
-  -d LOG_DIR, --log_dir LOG_DIR
-                        set chia log dira (default: ~/chialogs)
+  -q, --quicksearch     not search subdir
+  -w, --phaseweight     check parse weight
+  -d LOGDIR, --logdir LOGDIR
+                        set chia log dir (default: ~/chialogs)
 ```
