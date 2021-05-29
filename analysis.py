@@ -7,6 +7,32 @@ from datetime import datetime
 import argparse
 from prettytable import PrettyTable
 
+TIME_FORMAT = "%m/%d %H:%M:%S"
+
+PHASE1_WEIGHT = 43.88
+PHASE2_WEIGHT = 19.64
+PHASE3_WEIGHT = 33.70
+PHASE4_WEIGHT = 2.78
+
+TMP_DIRS    = r"^Starting plotting progress into temporary dirs: (.*) and (.*)"
+PLOT_ID     = r"^ID: (.+)"
+PLOT_SIZE   = r"^Plot size is: (\d+)"
+BUFFER_SIZE = r"^Buffer size is: (\d+)MiB"
+BUCKETS     = r"^Using (\d+) buckets"
+THREADS     = r"^Using (\d+) threads of stripe size (\d+)"
+START_TIME  = r"^Starting phase 1/4: Forward Propagation into tmp files\.\.\. (.+)"
+PHASE_1     = r"^Time for phase 1 = (\d+\.\d+) seconds. CPU \((\d+\.\d+)%\)"
+PHASE_2     = r"^Time for phase 2 = (\d+\.\d+) seconds. CPU \((\d+\.\d+)%\)"
+PHASE_3     = r"^Time for phase 3 = (\d+\.\d+) seconds. CPU \((\d+\.\d+)%\)"
+PHASE_4     = r"^Time for phase 4 = (\d+\.\d+) seconds. CPU \((\d+\.\d+)%\)"
+TOTAL_TIME  = r"^Total time = (\d+\.\d+) seconds. CPU \((\d+\.\d+)%\)"
+COPY_TIME   = r"^Copy time = (\d+\.\d+) seconds.*\) (.*)"
+FILENAME    = r"^Renamed final file from \".+\" to \"(.+)\""
+
+plot_list = []
+progress_sum = 0
+
+
 class plot_data:
     def __init__(self):
         self.tmp_dir1 = ""
@@ -37,29 +63,6 @@ class plot_data:
         self.phase3_weight = 0.0
         self.phase4_weight = 0.0
 
-TIME_FORMAT = "%m/%d %H:%M:%S"
-
-TMP_DIRS    = r"^Starting plotting progress into temporary dirs: (.*) and (.*)"
-PLOT_ID     = r"^ID: (.+)"
-PLOT_SIZE   = r"^Plot size is: (\d+)"
-BUFFER_SIZE = r"^Buffer size is: (\d+)MiB"
-BUCKETS     = r"^Using (\d+) buckets"
-THREADS     = r"^Using (\d+) threads of stripe size (\d+)"
-START_TIME  = r"^Starting phase 1/4: Forward Propagation into tmp files\.\.\. (.+)"
-PHASE_1     = r"^Time for phase 1 = (\d+\.\d+) seconds. CPU \((\d+\.\d+)%\)"
-PHASE_2     = r"^Time for phase 2 = (\d+\.\d+) seconds. CPU \((\d+\.\d+)%\)"
-PHASE_3     = r"^Time for phase 3 = (\d+\.\d+) seconds. CPU \((\d+\.\d+)%\)"
-PHASE_4     = r"^Time for phase 4 = (\d+\.\d+) seconds. CPU \((\d+\.\d+)%\)"
-TOTAL_TIME  = r"^Total time = (\d+\.\d+) seconds. CPU \((\d+\.\d+)%\)"
-COPY_TIME   = r"^Copy time = (\d+\.\d+) seconds.*\) (.*)"
-FILENAME    = r"^Renamed final file from \".+\" to \"(.+)\""
-
-PHASE1_WEIGHT = 43.88
-PHASE2_WEIGHT = 19.64
-PHASE3_WEIGHT = 33.70
-PHASE4_WEIGHT = 2.78
-
-plot_list = []
 def open_log(file):
     new_plot = plot_data()
     parse_step = 0
@@ -155,8 +158,9 @@ def analysis_log():
     if options.logdir:
         logdir = options.logdir
     else:
-        logdir = os.path.expanduser("~") + "/chialogs"
-
+        logdir = os.getenv("CLOGS")
+        if logdir == None:
+            logdir = os.path.expanduser("~") + "/chialogs"
 
     tb = PrettyTable()
 
@@ -189,6 +193,10 @@ def analysis_log():
             phase_time = phase_time + " / " + conversion_float_time(plot.phase4_time)
 
         progress = "{:.2f}".format(plot.progress) + "%"
+        global progress_sum
+        if options.progress:
+            if plot.progress < int(options.progress):
+                progress_sum += 1
 
         row = [plot.plot_size, plot.buffer_size, plot.threads, plot.tmp_dir1,
                plot.start_time.strftime(TIME_FORMAT),
@@ -217,6 +225,8 @@ def analysis_log():
         average_phase_weight = "average phase weight: {:.2f} / {:.2f} / {:.2f} / {:.2f}".format(
             average_phase1_weight,average_phase2_weight,average_phase3_weight,average_phase4_weight)
         print(average_phase_weight)
+    if options.progress:
+        print("plot progress < {}% have {}".format(options.progress, progress_sum))
 
 if __name__ == "__main__":
     title = "analysis"
@@ -224,9 +234,16 @@ if __name__ == "__main__":
     parse.add_argument("-f", "--filename", action="store_true", help="display filename")
     parse.add_argument("-q", "--quicksearch", action="store_true", help="not search subdir")
     parse.add_argument("-w", "--phaseweight", action="store_true", help="check parse weight")
+    parse.add_argument("-p", "--progress", help="return progress < xx%% count")
     parse.add_argument("-d", "--logdir", help="set chia log dir (default: ~/chialogs)")
     options = parse.parse_args()
 
+    if options.progress:
+        options.quicksearch = True
+
     analysis_log()
 
-    sys.exit(0)
+    if options.progress:
+        sys.exit(progress_sum)
+    else:
+        sys.exit(0)
